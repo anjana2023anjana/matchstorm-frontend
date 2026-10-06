@@ -8,6 +8,9 @@ interface TileProps {
   isMatched?: boolean;
   onClick: () => void;
   onDoubleClick?: () => void;
+  onTouchStart?: (e: React.TouchEvent) => void;
+  onTouchMove?: (e: React.TouchEvent) => void;
+  onTouchEnd?: (e: React.TouchEvent) => void;
   onDragStart?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
@@ -20,6 +23,9 @@ export const TileComponent: React.FC<TileProps> = ({
   isMatched = false,
   onClick,
   onDoubleClick,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
   onDragStart,
   onDragOver,
   onDrop,
@@ -30,13 +36,16 @@ export const TileComponent: React.FC<TileProps> = ({
       <div
         onClick={onClick}
         onDoubleClick={onDoubleClick}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
         draggable
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDrop={onDrop}
-        className={`relative w-full h-full aspect-square rounded-full flex items-center justify-center cursor-pointer select-none border-2 border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.8),inset_0_2px_6px_rgba(255,255,255,0.7)] bg-gradient-to-tr from-amber-950 via-yellow-700 to-amber-900 transition-all duration-200 animate-[spin_12s_linear_infinite] ${
+        className={`relative w-full h-full aspect-square rounded-full flex items-center justify-center cursor-pointer select-none touch-none candy-tile-gpu border-2 border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.8),inset_0_2px_6px_rgba(255,255,255,0.7)] bg-gradient-to-tr from-amber-950 via-yellow-700 to-amber-900 transition-transform duration-150 animate-[spin_12s_linear_infinite] ${
           isMatched
-            ? 'scale-150 opacity-0 brightness-200 rotate-90 transition-all duration-300'
+            ? 'scale-150 opacity-0 brightness-200 rotate-90 transition-all duration-200'
             : isSelected
             ? 'scale-110 ring-4 ring-yellow-300 ring-offset-2 ring-offset-slate-900 z-20 animate-pulse'
             : 'hover:scale-105 active:scale-95'
@@ -109,15 +118,18 @@ export const TileComponent: React.FC<TileProps> = ({
     <div
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
       draggable
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className={`relative w-full h-full aspect-square flex items-center justify-center cursor-pointer select-none border transition-all duration-200 ${
+      className={`relative w-full h-full aspect-square flex items-center justify-center cursor-pointer select-none touch-none candy-tile-gpu border transition-transform duration-150 ${
         candy.shape
       } ${candy.bg} ${candy.border} ${candy.shadow} ${
         isMatched
-          ? 'scale-125 opacity-0 brightness-150 rotate-45 transition-all duration-300'
+          ? 'scale-125 opacity-0 brightness-150 rotate-45 transition-all duration-200'
           : isSelected
           ? 'scale-110 ring-4 ring-yellow-300 ring-offset-2 ring-offset-slate-900 z-20 animate-pulse shadow-yellow-500/50 shadow-xl'
           : 'hover:scale-105 active:scale-95'

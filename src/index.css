@@ -4,6 +4,39 @@ html,
 body,
 #root {
   height: 100%;
+  width: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  -webkit-overscroll-behavior: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Prevent native pull-to-refresh and bounce on mobile */
+body {
+  position: fixed;
+  inset: 0;
+  touch-action: manipulation;
+}
+
+/* Candy Game Board Touch & Hardware Acceleration */
+.game-touch-surface {
+  touch-action: none !important;
+  overscroll-behavior: none !important;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.candy-tile-gpu {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
 }

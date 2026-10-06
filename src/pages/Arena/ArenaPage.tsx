@@ -58,10 +58,13 @@ export const ArenaPage: React.FC = () => {
 
   return (
     <div
-      className="relative h-screen max-h-screen w-full flex flex-col items-center justify-between p-2 md:p-3 select-none bg-cover bg-center bg-no-repeat overflow-hidden"
+      className="fixed inset-0 w-full h-full flex flex-col items-center justify-between p-2 md:p-3 select-none touch-none game-touch-surface bg-cover bg-center bg-no-repeat overflow-hidden"
       style={{
         backgroundImage: "url('/candy_bg.jpg')",
         backgroundColor: '#2e1065',
+      }}
+      onTouchMove={(e) => {
+        if (e.cancelable) e.preventDefault();
       }}
     >
       {/* Light Fantasy Atmospheric Vignette (Clear View of Background) */}
@@ -112,6 +115,15 @@ export const ArenaPage: React.FC = () => {
           <span className="text-xs font-mono font-extrabold text-cyan-300 whitespace-nowrap">
             ⭐ {score.toLocaleString()} / {currentLevel.targetScore.toLocaleString()}
           </span>
+          {/* Target Score Mini Progress */}
+          <div className="w-20 sm:w-28 h-1 bg-slate-950 rounded-full overflow-hidden border border-slate-700/80 mt-0.5">
+            <div
+              className="h-full bg-gradient-to-r from-yellow-400 to-amber-500 transition-all duration-300"
+              style={{
+                width: `${Math.min(100, Math.round((score / currentLevel.targetScore) * 100))}%`,
+              }}
+            />
+          </div>
         </div>
 
         {/* Right: Boss Profile & Controls */}
