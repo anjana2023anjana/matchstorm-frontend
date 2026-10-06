@@ -47,25 +47,23 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
   const [activeBombBursts, setActiveBombBursts] = useState<{ row: number; col: number }[]>([]);
   const [activeRainbowLightning, setActiveRainbowLightning] = useState<boolean>(false);
 
-  const dragSource = useRef<{ row: number; col: number } | null>(null);
   const lastTapTimeRef = useRef<{ row: number; col: number; time: number } | null>(null);
   const processingRef = useRef(false);
-  const touchStartPos = useRef<{ row: number; col: number; x: number; y: number } | null>(null);
-  const lastTouchTimeRef = useRef<number>(0);
+  const pointerStartPos = useRef<{ row: number; col: number; x: number; y: number; id: number } | null>(null);
 
   const setProcessingState = useCallback((val: boolean) => {
     processingRef.current = val;
     setIsProcessing(val);
   }, []);
 
-  // Safety Watchdog: If an animation gets stalled for > 4.5s, safely reset state
+  // Safety Watchdog: If an animation gets stalled for > 3.5s, safely reset state
   useEffect(() => {
     if (isProcessing) {
       const timer = setTimeout(() => {
         setProcessingState(false);
         setMatchedKeys(new Set());
         setActiveRainbowLightning(false);
-      }, 4500);
+      }, 3500);
       return () => clearTimeout(timer);
     }
   }, [isProcessing, setProcessingState]);
@@ -73,7 +71,7 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
   // Trigger floating Candy Crush combo banner
   const triggerComboBanner = (text: string, scoreGain: number) => {
     setComboBanner({ text, score: scoreGain });
-    setTimeout(() => setComboBanner(null), 1200);
+    setTimeout(() => setComboBanner(null), 1100);
   };
 
   /**
@@ -105,14 +103,18 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
       if (scan.matchedKeys.size === 0) {
         setProcessingState(false);
 
-        // Check victory / out of moves after cascades finish
+        // Check victory / out of moves ONLY AFTER all cascades have settled!
         const currentMoves = useGameStore.getState().movesLeft;
         const currentTasks = useGameStore.getState().tasks;
         const isLevelMode = currentTasks.length > 0;
-        const allDone = isLevelMode ? currentTasks.every((t) => t.current >= t.target) : false;
+        const allDone = isLevelMode
+          ? currentTasks.every((t) => t.current >= t.target)
+          : false;
 
-        if (allDone || (!isLevelMode && useGameStore.getState().opponentHP <= 0)) {
+        if (allDone) {
           saveLevelCompletion(currentLevelId, useGameStore.getState().score);
+          setGameOver(useAuthStore.getState().user?.id || 'player');
+        } else if (!isLevelMode && useGameStore.getState().opponentHP <= 0) {
           setGameOver(useAuthStore.getState().user?.id || 'player');
         } else if (currentMoves <= 0) {
           setGameOver('opponent');
@@ -128,19 +130,19 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
         setTimeout(() => {
           setActiveLaserRows([]);
           setActiveLaserCols([]);
-        }, 300);
+        }, 260);
       }
 
       if (scan.bombPositions.length > 0) {
         candyAudio.playBomb();
         setActiveBombBursts(scan.bombPositions);
-        setTimeout(() => setActiveBombBursts([]), 350);
+        setTimeout(() => setActiveBombBursts([]), 280);
       }
 
       if (scan.colorBombsBlasted > 0) {
         candyAudio.playColorBomb();
         setActiveRainbowLightning(true);
-        setTimeout(() => setActiveRainbowLightning(false), 350);
+        setTimeout(() => setActiveRainbowLightning(false), 280);
       }
 
       // Step 1: Count color categories for tasks progress
@@ -155,7 +157,7 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
 
       // Step 2: Highlight & explode matched tiles
       setMatchedKeys(scan.matchedKeys);
-      candyAudio.playPop(520 + cascadeIndex * 60, 0.12);
+      candyAudio.playPop(520 + cascadeIndex * 50, 0.1);
 
       const damage = scan.matchedKeys.size * 5 * cascadeIndex;
       const pts = damage * 15;
@@ -169,49 +171,26 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
       candyAudio.playCombo(cascadeIndex);
 
       // Update Tasks Progress
-      const allTasksDone = updateTasksProgress(
+      updateTasksProgress(
         colorCounts,
         scan.rocketRows.length + scan.rocketCols.length,
         scan.bombPositions.length,
         scan.colorBombsBlasted
       );
 
-      // Read fresh stats and update boss HP
-      const currentStats = useGameStore.getState();
-      const isLevelMode = currentStats.tasks.length > 0;
+      // Sync boss HP with target completion progress
+      updateLevelBossHP();
 
-      let remainingOpponentHP = currentStats.opponentHP;
-      if (isLevelMode) {
-        const totalTarget = currentStats.tasks.reduce((acc, t) => acc + t.target, 0);
-        const totalDone = currentStats.tasks.reduce((acc, t) => acc + Math.min(t.target, t.current), 0);
-        const remainingRatio = totalTarget > 0 ? Math.max(0, 1 - totalDone / totalTarget) : 0;
-        remainingOpponentHP = Math.round(remainingRatio * (currentStats.opponentMaxHP || 100));
-      } else {
-        remainingOpponentHP = Math.max(0, currentStats.opponentHP - damage);
-      }
-
-      updateStats(
-        currentStats.playerHP,
-        currentStats.playerShield + (scan.matchedKeys.size >= 4 ? 12 : 0),
-        remainingOpponentHP
-      );
-
-      // Check Victory Condition
-      if (allTasksDone || (!isLevelMode && remainingOpponentHP <= 0)) {
-        saveLevelCompletion(currentLevelId, score + pts);
-        setTimeout(() => setGameOver(useAuthStore.getState().user?.id || 'player'), 400);
-      }
-
-      // Wait for pop animation to finish (snappy 200ms)
-      await new Promise((res) => setTimeout(res, 200));
+      // Wait for pop animation to finish (snappy 160ms)
+      await new Promise((res) => setTimeout(res, 160));
 
       // Step 3: Gravity drop and refill top with any newly spawned specials
       const nextBoard = dropAndRefillWithSpecials(currentBoard, scan.matchedKeys, scan.createdSpecials);
       setMatchedKeys(new Set());
       setPlayerBoard(nextBoard);
 
-      // Step 4: Wait for drop animation settle (snappy 160ms)
-      await new Promise((res) => setTimeout(res, 160));
+      // Step 4: Wait for drop animation settle (snappy 130ms)
+      await new Promise((res) => setTimeout(res, 130));
 
       // Step 5: Next Cascade iteration
       await processCascades(nextBoard, cascadeIndex + 1);
@@ -237,9 +216,9 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
     if (tile.special === 'BOMB') {
       candyAudio.playBomb();
       setIsShaking(true);
-      setTimeout(() => setIsShaking(false), 260);
+      setTimeout(() => setIsShaking(false), 200);
       setActiveBombBursts([{ row, col }]);
-      setTimeout(() => setActiveBombBursts([]), 400);
+      setTimeout(() => setActiveBombBursts([]), 300);
 
       for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
@@ -254,14 +233,14 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
     } else if (tile.special === 'ROW_ROCKET') {
       candyAudio.playRocket();
       setActiveLaserRows([row]);
-      setTimeout(() => setActiveLaserRows([]), 350);
+      setTimeout(() => setActiveLaserRows([]), 300);
 
       for (let c = 0; c < 8; c++) keysToBlast.add(`${row},${c}`);
       triggerComboBanner('🚀 ROW LASER BLAST!', 250);
     } else if (tile.special === 'COL_ROCKET') {
       candyAudio.playRocket();
       setActiveLaserCols([col]);
-      setTimeout(() => setActiveLaserCols([]), 350);
+      setTimeout(() => setActiveLaserCols([]), 300);
 
       for (let r = 0; r < 8; r++) keysToBlast.add(`${r},${col}`);
       triggerComboBanner('🚀 COL LASER BLAST!', 250);
@@ -287,7 +266,7 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
         }
       }
       triggerComboBanner('🌈 COLOR BOMB BLAST!', 400);
-      setTimeout(() => setActiveRainbowLightning(false), 400);
+      setTimeout(() => setActiveRainbowLightning(false), 300);
     }
 
     // Collect all fruits/candies blasted by the explosion and count towards tasks
@@ -304,7 +283,7 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
     const isRocket = tile.special === 'ROW_ROCKET' || tile.special === 'COL_ROCKET';
     const isColorBomb = tile.special === 'COLOR_BOMB';
 
-    const allTasksDone = updateTasksProgress(
+    updateTasksProgress(
       colorCounts,
       isRocket ? 1 : 0,
       isBomb ? 1 : 0,
@@ -314,23 +293,15 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
     setMatchedKeys(keysToBlast);
     const pts = keysToBlast.size * 25;
     addScore(pts);
-
     updateLevelBossHP();
 
-    const stats = useGameStore.getState();
-    const isLevelMode = stats.tasks.length > 0;
-    if (allTasksDone || (!isLevelMode && stats.opponentHP <= 0)) {
-      saveLevelCompletion(currentLevelId, stats.score + pts);
-      setTimeout(() => setGameOver(useAuthStore.getState().user?.id || 'player'), 400);
-    }
-
-    await new Promise((res) => setTimeout(res, 220));
+    await new Promise((res) => setTimeout(res, 160));
 
     const nextBoard = dropAndRefillWithSpecials(grid, keysToBlast);
     setMatchedKeys(new Set());
     setPlayerBoard(nextBoard);
 
-    await new Promise((res) => setTimeout(res, 160));
+    await new Promise((res) => setTimeout(res, 130));
     await processCascades(nextBoard, 1);
   };
 
@@ -350,12 +321,12 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
     setSelectedTile(null);
 
     try {
-      // Decrement move counter
-      decrementMoves();
-
-      // Check for Special Candies Swap & Combos (Color Bomb, Rocket, Bomb)
+      // 1. Check for Special Candies Swap & Combos (Color Bomb, Rocket, Bomb)
       const specialResult = executeSpecialSwap(grid, from, to);
       if (specialResult.isSpecialSwap) {
+        // Valid special move -> decrement move counter now!
+        decrementMoves();
+
         if (specialResult.soundType === 'colorBomb') candyAudio.playColorBomb();
         else if (specialResult.soundType === 'rocket') candyAudio.playRocket();
         else if (specialResult.soundType === 'bomb') candyAudio.playBomb();
@@ -367,12 +338,12 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
           setTimeout(() => {
             setActiveLaserRows([]);
             setActiveLaserCols([]);
-          }, 320);
+          }, 280);
         }
 
         if (specialResult.bombBursts.length > 0) {
           setActiveBombBursts(specialResult.bombBursts);
-          setTimeout(() => setActiveBombBursts([]), 380);
+          setTimeout(() => setActiveBombBursts([]), 300);
         }
 
         if (specialResult.isRainbowLightning) {
@@ -398,7 +369,7 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
           }
         });
 
-        const allTasksDone = updateTasksProgress(
+        updateTasksProgress(
           colorCounts,
           specialResult.rocketsBlasted,
           specialResult.bombsBlasted,
@@ -407,32 +378,24 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
 
         updateLevelBossHP();
 
-        const stats = useGameStore.getState();
-        const isLevelMode = stats.tasks.length > 0;
-        if (allTasksDone || (!isLevelMode && stats.opponentHP <= 0)) {
-          saveLevelCompletion(currentLevelId, score + pts);
-          setTimeout(() => setGameOver(useAuthStore.getState().user?.id || 'player'), 400);
-        }
-
-        await new Promise((res) => setTimeout(res, 220));
+        await new Promise((res) => setTimeout(res, 180));
         setActiveRainbowLightning(false);
 
         const nextBoard = dropAndRefillWithSpecials(grid, specialResult.clearedKeys);
         setMatchedKeys(new Set());
         setPlayerBoard(nextBoard);
 
-        await new Promise((res) => setTimeout(res, 160));
+        await new Promise((res) => setTimeout(res, 130));
         await processCascades(nextBoard, 1);
         return;
       }
 
-      // Normal Swap check
-      candyAudio.playSwap();
+      // 2. Normal Swap check
       const tentativeBoard = swapInGrid(grid, from, to);
       const scan = findMatchesWithSpecials(tentativeBoard, to);
 
       if (scan.matchedKeys.size === 0) {
-        // Invalid Swap: show wiggle and swap back (Classic Candy Crush behavior)
+        // Invalid Swap: show wiggle and swap back — DO NOT DECREMENT MOVES!
         candyAudio.playInvalid();
         setPlayerBoard(tentativeBoard);
         setIsShaking(true);
@@ -441,11 +404,13 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
           setPlayerBoard(grid); // Revert back
           setIsShaking(false);
           setProcessingState(false);
-        }, 240);
+        }, 200);
         return;
       }
 
-      // Valid Swap: update board and cascade!
+      // Valid Swap: decrement move counter now!
+      decrementMoves();
+      candyAudio.playSwap();
       setPlayerBoard(tentativeBoard);
 
       // If connected to multiplayer server, notify backend
@@ -477,7 +442,7 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
         setMatchedKeys(new Set());
         setPlayerBoard(nextBoard);
         processCascades(nextBoard, 1);
-      }, 200);
+      }, 160);
       return;
     }
 
@@ -514,41 +479,29 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
     handleTileSwap(selectedTile, { row, col });
   };
 
-  // Touch Swipe Handlers for Mobile Web & Capacitor WebView
-  const handleTouchStart = (r: number, c: number, e: React.TouchEvent) => {
+  // High-Performance Unified Pointer Events for Desktop & Mobile
+  const handlePointerDown = (r: number, c: number, e: React.PointerEvent) => {
     if (processingRef.current) return;
-    if (e.touches.length > 0) {
-      touchStartPos.current = {
-        row: r,
-        col: c,
-        x: e.touches[0].clientX,
-        y: e.touches[0].clientY,
-      };
-    }
+    pointerStartPos.current = {
+      row: r,
+      col: c,
+      x: e.clientX,
+      y: e.clientY,
+      id: e.pointerId,
+    };
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    // Intercept touchmove to prevent mobile browser pull-to-refresh
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-  };
+  const handlePointerUp = (r: number, c: number, e: React.PointerEvent) => {
+    if (processingRef.current || !pointerStartPos.current) return;
+    const start = pointerStartPos.current;
+    pointerStartPos.current = null;
 
-  const handleTouchEnd = (r: number, c: number, e: React.TouchEvent) => {
-    if (processingRef.current || !touchStartPos.current) return;
-    const start = touchStartPos.current;
-    touchStartPos.current = null;
-    lastTouchTimeRef.current = Date.now();
-
-    if (e.changedTouches.length === 0) return;
-    const endX = e.changedTouches[0].clientX;
-    const endY = e.changedTouches[0].clientY;
-    const dx = endX - start.x;
-    const dy = endY - start.y;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
     const dist = Math.hypot(dx, dy);
 
-    // If swipe distance is >= 20px, execute smooth directional swap!
-    if (dist >= 20) {
+    // If swipe distance is >= 16px, execute instant directional swap!
+    if (dist >= 16) {
       let targetRow = r;
       let targetCol = c;
 
@@ -567,24 +520,8 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
     }
   };
 
-  const handleTileClickWrapper = (r: number, c: number) => {
-    // Ignore synthetic mouse click if it was immediately preceded by a touch event
-    if (Date.now() - lastTouchTimeRef.current < 350) return;
-    handleTileClick(r, c);
-  };
-
-  const handleDragStart = (r: number, c: number) => {
-    if (processingRef.current) return;
-    dragSource.current = { row: r, col: c };
-    setSelectedTile({ row: r, col: c });
-  };
-
-  const handleDrop = (r: number, c: number, e: React.DragEvent) => {
-    e.preventDefault();
-    if (dragSource.current) {
-      handleTileSwap(dragSource.current, { row: r, col: c });
-      dragSource.current = null;
-    }
+  const handlePointerCancel = () => {
+    pointerStartPos.current = null;
   };
 
   // Booster action: Free shuffle
@@ -658,9 +595,6 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
         className={`relative p-2 sm:p-2.5 rounded-2xl bg-slate-900/85 border-2 sm:border-3 border-amber-400/70 shadow-[0_12px_40px_rgba(0,0,0,0.85)] backdrop-blur-xl transition-transform touch-none select-none game-touch-surface ${
           isShaking ? 'scale-95 duration-100' : 'duration-200'
         } ${activeBooster === 'HAMMER' ? 'cursor-crosshair ring-4 ring-rose-500' : ''}`}
-        onTouchMove={(e) => {
-          if (e.cancelable) e.preventDefault();
-        }}
       >
         {/* Rocket Laser Beam Visual Overlays */}
         {activeLaserRows.map((row) => (
@@ -714,18 +648,9 @@ export const Board: React.FC<BoardProps> = ({ grid }) => {
                       special={tile.special}
                       isSelected={isSelected}
                       isMatched={isMatched}
-                      onClick={() => handleTileClickWrapper(rIdx, cIdx)}
-                      onDoubleClick={() => {
-                        if (tile.special) {
-                          handleSpecialDetonation(rIdx, cIdx);
-                        }
-                      }}
-                      onTouchStart={(e) => handleTouchStart(rIdx, cIdx, e)}
-                      onTouchMove={handleTouchMove}
-                      onTouchEnd={(e) => handleTouchEnd(rIdx, cIdx, e)}
-                      onDragStart={() => handleDragStart(rIdx, cIdx)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => handleDrop(rIdx, cIdx, e)}
+                      onPointerDown={(e) => handlePointerDown(rIdx, cIdx, e)}
+                      onPointerUp={(e) => handlePointerUp(rIdx, cIdx, e)}
+                      onPointerCancel={handlePointerCancel}
                     />
                   )}
                 </div>

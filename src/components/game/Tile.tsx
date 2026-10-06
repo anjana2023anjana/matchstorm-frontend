@@ -6,14 +6,10 @@ interface TileProps {
   special?: SpecialType;
   isSelected: boolean;
   isMatched?: boolean;
-  onClick: () => void;
-  onDoubleClick?: () => void;
-  onTouchStart?: (e: React.TouchEvent) => void;
-  onTouchMove?: (e: React.TouchEvent) => void;
-  onTouchEnd?: (e: React.TouchEvent) => void;
-  onDragStart?: (e: React.DragEvent) => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDrop?: (e: React.DragEvent) => void;
+  onPointerDown?: (e: React.PointerEvent) => void;
+  onPointerUp?: (e: React.PointerEvent) => void;
+  onPointerCancel?: (e: React.PointerEvent) => void;
+  onClick?: () => void;
 }
 
 export const TileComponent: React.FC<TileProps> = ({
@@ -21,28 +17,19 @@ export const TileComponent: React.FC<TileProps> = ({
   special,
   isSelected,
   isMatched = false,
+  onPointerDown,
+  onPointerUp,
+  onPointerCancel,
   onClick,
-  onDoubleClick,
-  onTouchStart,
-  onTouchMove,
-  onTouchEnd,
-  onDragStart,
-  onDragOver,
-  onDrop,
 }) => {
   // If it's a COLOR BOMB: Render the iconic Rainbow Disco Ball / Chocolate with Sprinkles
   if (special === 'COLOR_BOMB') {
     return (
       <div
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
         onClick={onClick}
-        onDoubleClick={onDoubleClick}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        draggable
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
         className={`relative w-full h-full aspect-square rounded-full flex items-center justify-center cursor-pointer select-none touch-none candy-tile-gpu border-2 border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.8),inset_0_2px_6px_rgba(255,255,255,0.7)] bg-gradient-to-tr from-amber-950 via-yellow-700 to-amber-900 transition-transform duration-150 animate-[spin_12s_linear_infinite] ${
           isMatched
             ? 'scale-150 opacity-0 brightness-200 rotate-90 transition-all duration-200'
@@ -116,15 +103,10 @@ export const TileComponent: React.FC<TileProps> = ({
 
   return (
     <div
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      draggable
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
       className={`relative w-full h-full aspect-square flex items-center justify-center cursor-pointer select-none touch-none candy-tile-gpu border transition-transform duration-150 ${
         candy.shape
       } ${candy.bg} ${candy.border} ${candy.shadow} ${
